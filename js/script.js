@@ -110,7 +110,15 @@
 
     document.querySelectorAll("[data-count], .meter-fill").forEach(function (el) { io.observe(el); });
 
-    /* Contact form (client-side only) */
+    /* Contact form (EmailJS integration) */
+    var EMAILJS_PUBLIC_KEY = "6WcPGlS_8Nq4luIWG";  // Replace with your EmailJS Public Key
+    var EMAILJS_SERVICE_ID = "service_rgw8dnb";  // Replace with your EmailJS Service ID
+    var EMAILJS_TEMPLATE_ID = "template_a2smxyg";// Replace with your EmailJS Template ID
+
+    if (window.emailjs && EMAILJS_PUBLIC_KEY && EMAILJS_PUBLIC_KEY !== "YOUR_PUBLIC_KEY") {
+      try { emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch (err) { console.warn(err); }
+    }
+
     var form = document.querySelector(".form-x");
     if (form) {
       form.addEventListener("submit", function (e) {
@@ -118,19 +126,80 @@
         var note = form.querySelector(".form-note");
         var name = form.querySelector("#cf-name");
         var email = form.querySelector("#cf-email");
+        var subjInput = form.querySelector("#cf-subject");
         var message = form.querySelector("#cf-message");
+        var submitBtn = form.querySelector("button[type='submit']");
+        var originalBtnText = submitBtn ? submitBtn.innerHTML : "Send message";
+
         var valid = name.value.trim() && /^\S+@\S+\.\S+$/.test(email.value.trim()) && message.value.trim().length > 4;
         if (!valid) {
-          note.textContent = "Please add your name, a valid email and a short message.";
+          note.textContent = "Please add your name, a valid email and a message.";
           note.className = "form-note err";
           return;
         }
-        var subject = encodeURIComponent("Portfolio enquiry from " + name.value.trim());
-        var body = encodeURIComponent(message.value.trim() + "\n\n— " + name.value.trim() + " (" + email.value.trim() + ")");
-        window.location.href = "mailto:nivask457@gmail.com?subject=" + subject + "&body=" + body;
-        note.textContent = "Opening your mail app… you can also write directly to nivask457@gmail.com";
-        note.className = "form-note ok";
-        form.reset();
+
+        var nameVal = name.value.trim();
+        var emailVal = email.value.trim();
+        var subjectVal = (subjInput && subjInput.value.trim()) || ("Portfolio enquiry from " + nameVal);
+        var messageVal = message.value.trim();
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = 'Sending... <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        }
+        note.textContent = "Sending your message...";
+        note.className = "form-note";
+
+        function fallbackMailto() {
+          var subjectEnc = encodeURIComponent(subjectVal);
+          var bodyEnc = encodeURIComponent(messageVal + "\n\n— " + nameVal + " (" + emailVal + ")");
+          window.location.href = "mailto:nivask457@gmail.com?subject=" + subjectEnc + "&body=" + bodyEnc;
+          note.textContent = "Opening your mail app to send to nivask457@gmail.com...";
+          note.className = "form-note ok";
+          form.reset();
+        }
+
+        var isConfigured = window.emailjs && 
+          EMAILJS_PUBLIC_KEY !== "YOUR_PUBLIC_KEY" && 
+          EMAILJS_SERVICE_ID !== "YOUR_SERVICE_ID" && 
+          EMAILJS_TEMPLATE_ID !== "YOUR_TEMPLATE_ID";
+
+        if (isConfigured) {
+          var templateParams = {
+            from_name: nameVal,
+            from_email: emailVal,
+            reply_to: emailVal,
+            subject: subjectVal,
+            message: messageVal,
+            to_name: "Nivas Kumar S"
+          };
+
+          emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY)
+            .then(function () {
+              note.textContent = "✓ Thank you! Your message has been sent successfully.";
+              note.className = "form-note ok";
+              form.reset();
+            })
+            .catch(function (error) {
+              console.error("EmailJS dispatch failed:", error);
+              fallbackMailto();
+            })
+            .finally(function () {
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+              }
+            });
+        } else {
+          // If keys are pending configuration in script.js, simulate delay & fallback to mailto: link
+          setTimeout(function () {
+            fallbackMailto();
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = originalBtnText;
+            }
+          }, 400);
+        }
       });
     }
   }
